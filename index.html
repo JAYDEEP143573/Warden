@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Warden — File Signal Inspector</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#0b0e17;
+    --surface:#12151f;
+    --surface-2:#181d2b;
+    --line:#242a3d;
+    --accent:#7c5cff;
+    --accent-2:#00e5d6;
+    --danger:#ff5470;
+    --warning:#ffb84d;
+    --success:#00e5a0;
+    --text:#e8eaf3;
+    --text-dim:#8b90a8;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(124,92,255,0.16), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(0,229,214,0.10), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:0;
+  }
+
+  .wrap{max-width:880px;margin:0 auto;padding:56px 24px 80px;}
+
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:64px;flex-wrap:wrap;}
+  .wordmark{font-size:20px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:10px;}
+  .wordmark .dot{width:9px;height:9px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 12px var(--accent-2);}
+  .top-note{font-family:var(--mono);font-size:12.5px;color:var(--text-dim);}
+
+  h1{
+    font-size:clamp(32px,5vw,46px);
+    line-height:1.08;
+    font-weight:700;
+    letter-spacing:-0.02em;
+    margin:0 0 18px;
+    max-width:640px;
+  }
+  h1 em{font-style:normal;color:var(--accent-2);}
+
+  .lede{font-size:17px;line-height:1.6;color:var(--text-dim);max-width:520px;margin:0 0 40px;}
+
+  .dropzone{
+    border:1.5px dashed #33395280;
+    border-radius:14px;
+    background:var(--surface);
+    padding:44px 28px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+    position:relative;
+  }
+  .dropzone.drag{border-color:var(--accent-2);background:var(--surface-2);}
+  .dropzone input{display:none;}
+  .dz-icon{width:38px;height:38px;margin:0 auto 16px;opacity:.85;}
+  .dz-title{font-weight:600;font-size:16px;margin-bottom:6px;}
+  .dz-sub{font-family:var(--mono);font-size:12.5px;color:var(--text-dim);}
+  .dz-file{font-family:var(--mono);font-size:13px;color:var(--accent-2);margin-top:14px;word-break:break-all;}
+
+  .disclaimer{
+    margin-top:14px;
+    font-size:13px;
+    line-height:1.55;
+    color:var(--text-dim);
+    padding:12px 14px;
+    border-left:2px solid var(--line);
+  }
+
+  .results{margin-top:44px;display:none;}
+  .results.show{display:block;}
+
+  .risk-row{
+    display:flex;align-items:center;gap:18px;
+    padding:20px;border:1px solid var(--line);border-radius:12px;
+    background:var(--surface);margin-bottom:24px;
+  }
+  .risk-badge{
+    font-family:var(--mono);font-weight:600;font-size:13px;
+    padding:7px 14px;border-radius:999px;white-space:nowrap;
+  }
+  .risk-badge.low{background:rgba(0,229,160,0.12);color:var(--success);border:1px solid rgba(0,229,160,0.3);}
+  .risk-badge.med{background:rgba(255,184,77,0.12);color:var(--warning);border:1px solid rgba(255,184,77,0.3);}
+  .risk-badge.high{background:rgba(255,84,112,0.12);color:var(--danger);border:1px solid rgba(255,84,112,0.3);}
+  .risk-detail{font-size:13.5px;color:var(--text-dim);}
+  .risk-detail b{color:var(--text);font-weight:600;}
+
+  .panel{
+    border:1px solid var(--line);border-radius:12px;background:var(--surface);
+    padding:22px 22px 8px;margin-bottom:20px;
+  }
+  .panel h2{font-size:15px;font-weight:600;margin:0 0 4px;}
+  .panel .panel-sub{font-size:13px;color:var(--text-dim);margin:0 0 18px;}
+
+  .hash-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:13px;flex-wrap:wrap;}
+  .hash-row:first-of-type{border-top:none;}
+  .hash-label{color:var(--text-dim);min-width:90px;}
+  .hash-val{font-family:var(--mono);word-break:break-all;text-align:right;flex:1;}
+
+  .check{
+    display:flex;gap:12px;align-items:flex-start;
+    padding:14px 0;border-top:1px solid var(--line);
+  }
+  .check:first-of-type{border-top:none;}
+  .check .mark{
+    width:20px;height:20px;border-radius:6px;flex:none;
+    display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;margin-top:1px;
+  }
+  .mark.pass{background:rgba(0,229,160,0.14);color:var(--success);}
+  .mark.flag{background:rgba(255,84,112,0.14);color:var(--danger);}
+  .mark.warn{background:rgba(255,184,77,0.14);color:var(--warning);}
+  .check-title{font-size:13.5px;font-weight:600;margin-bottom:3px;}
+  .check-desc{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+
+  .reset{
+    display:inline-block;margin-top:8px;margin-bottom:36px;
+    font-family:var(--mono);font-size:12.5px;color:var(--accent-2);
+    cursor:pointer;background:none;border:none;padding:0;
+  }
+
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--text-dim);line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="wordmark"><span class="dot"></span>WARDEN</div>
+    <div class="top-note">runs entirely in your browser — nothing uploaded</div>
+  </header>
+
+  <h1>Check a file's <em>signature</em> before it checks you.</h1>
+  <p class="lede">Drop in a file. Warden computes its cryptographic hash and runs a set of heuristic red-flag checks — the same first-pass techniques real malware triage starts with.</p>
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" />
+    <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="#8b90a8" stroke-width="1.4">
+      <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="dz-title">Drop a file here, or click to browse</div>
+    <div class="dz-sub">Processed locally · no file leaves this page</div>
+    <div class="dz-file" id="dzFile"></div>
+  </div>
+
+  <div class="disclaimer">
+    This is a signature-matching and heuristic tool, not an antivirus engine. It can only flag what it's told to look for, and it checks a small demo hash list — not the millions of signatures a real AV product uses. Treat any result here as a first-pass signal, not a verdict.
+  </div>
+
+  <button class="reset" id="resetBtn" style="display:none;">↺ check another file</button>
+
+  <div class="results" id="results">
+
+    <div class="risk-row">
+      <div class="risk-badge" id="riskBadge">—</div>
+      <div class="risk-detail" id="riskDetail">—</div>
+    </div>
+
+    <div class="panel">
+      <h2>Hash lookup</h2>
+      <p class="panel-sub">Computed locally, checked against a small demo signature list.</p>
+      <div class="hash-row"><span class="hash-label">Filename</span><span class="hash-val" id="fname">—</span></div>
+      <div class="hash-row"><span class="hash-label">Size</span><span class="hash-val" id="fsize">—</span></div>
+      <div class="hash-row"><span class="hash-label">SHA-256</span><span class="hash-val" id="sha256">—</span></div>
+      <div class="hash-row"><span class="hash-label">SHA-1</span><span class="hash-val" id="sha1">—</span></div>
+      <div class="hash-row"><span class="hash-label">Match</span><span class="hash-val" id="hashMatch">—</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>Heuristic checks</h2>
+      <p class="panel-sub">Pattern-level indicators, computed from the file's raw bytes and name.</p>
+      <div id="checksList"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    Built for learning file-inspection fundamentals: hashing, magic-byte signatures, and heuristic red flags. For real detection, pair this approach with an actual antivirus engine or a threat-intel API such as VirusTotal.
+  </footer>
+
+</div>
+
+<script>
+// --- Demo known-malicious hash list (SHA-256) ---
+// EICAR is the industry-standard, harmless AV test file — its hash is public and safe to include.
+const KNOWN_BAD_SHA256 = {
+  "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0": "EICAR test file (standard antivirus test signature — not real malware)"
+};
+
+const SUSPICIOUS_EXTS = ["exe","scr","bat","cmd","js","vbs","vbe","ps1","jar","msi","com","pif","hta","wsf"];
+
+const MAGIC_SIGNATURES = [
+  { name: "PDF", exts: ["pdf"], bytes: [0x25,0x50,0x44,0x46] },
+  { name: "PNG", exts: ["png"], bytes: [0x89,0x50,0x4E,0x47] },
+  { name: "JPEG", exts: ["jpg","jpeg"], bytes: [0xFF,0xD8,0xFF] },
+  { name: "GIF", exts: ["gif"], bytes: [0x47,0x49,0x46,0x38] },
+  { name: "ZIP/Office", exts: ["zip","docx","xlsx","pptx"], bytes: [0x50,0x4B,0x03,0x04] },
+  { name: "Windows executable", exts: ["exe","dll","scr","com"], bytes: [0x4D,0x5A] },
+  { name: "ELF binary", exts: ["elf",""], bytes: [0x7F,0x45,0x4C,0x46] }
+];
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const dzFile = document.getElementById('dzFile');
+const results = document.getElementById('results');
+const resetBtn = document.getElementById('resetBtn');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+resetBtn.addEventListener('click', () => {
+  results.classList.remove('show');
+  resetBtn.style.display = 'none';
+  dzFile.textContent = '';
+  fileInput.value = '';
+});
+
+async function handleFile(file){
+  dzFile.textContent = `Reading “${file.name}”…`;
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+
+  const sha256 = await hashHex(buf, 'SHA-256');
+  const sha1 = await hashHex(buf, 'SHA-1');
+
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const checks = runHeuristics(file.name, ext, bytes);
+  const badMatch = KNOWN_BAD_SHA256[sha256];
+
+  renderResults({ file, sha256, sha1, ext, checks, badMatch });
+  dzFile.textContent = `Loaded: ${file.name}`;
+  resetBtn.style.display = 'inline-block';
+}
+
+async function hashHex(buf, algo){
+  const digest = await crypto.subtle.digest(algo, buf);
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function bytesStartWith(bytes, sig, offset=0){
+  if (bytes.length < offset + sig.length) return false;
+  for (let i=0;i<sig.length;i++){ if (bytes[offset+i] !== sig[i]) return false; }
+  return true;
+}
+
+function findAscii(bytes, needle){
+  // naive substring search over a latin1 decode, fine for small-medium files
+  const hay = Array.from(bytes.subarray(0, Math.min(bytes.length, 5_000_000)))
+    .map(b => String.fromCharCode(b)).join('');
+  return hay.includes(needle);
+}
+
+function shannonEntropy(bytes){
+  const counts = new Array(256).fill(0);
+  const sample = bytes.subarray(0, Math.min(bytes.length, 2_000_000));
+  for (const b of sample) counts[b]++;
+  const len = sample.length || 1;
+  let entropy = 0;
+  for (const c of counts){
+    if (!c) continue;
+    const p = c/len;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+
+function runHeuristics(filename, ext, bytes){
+  const checks = [];
+
+  // 1. Double extension
+  const parts = filename.toLowerCase().split('.');
+  if (parts.length > 2){
+    const secondLast = parts[parts.length-2];
+    if (SUSPICIOUS_EXTS.includes(parts[parts.length-1]) && !SUSPICIOUS_EXTS.includes(secondLast)) {
+      checks.push({level:'flag', title:'Double file extension', desc:`Filename looks like “${secondLast}.${parts[parts.length-1]}” — a common trick to disguise an executable as a document or image.`});
+    } else {
+      checks.push({level:'pass', title:'No suspicious double extension', desc:'Filename does not have a disguised second extension.'});
+    }
+  } else {
+    checks.push({level:'pass', title:'No suspicious double extension', desc:'Filename has a single, plain extension.'});
+  }
+
+  // 2. Suspicious extension itself
+  if (SUSPICIOUS_EXTS.includes(ext)){
+    checks.push({level:'warn', title:'Executable-class extension', desc:`“.${ext}” files can run code directly — worth extra caution regardless of other checks.`});
+  } else {
+    checks.push({level:'pass', title:'Non-executable extension', desc:`“.${ext || 'unknown'}” is not in the common executable-extension list.`});
+  }
+
+  // 3. Magic byte vs extension mismatch
+  let matchedSig = null;
+  for (const sig of MAGIC_SIGNATURES){
+    if (bytesStartWith(bytes, sig.bytes)) { matchedSig = sig; break; }
+  }
+  if (matchedSig){
+    if (!matchedSig.exts.includes(ext)) {
+      checks.push({level:'flag', title:'File content doesn\u2019t match its extension', desc:`File starts with a ${matchedSig.name} signature, but its extension is “.${ext}”. A mismatched signature is one of the most reliable disguise indicators.`});
+    } else {
+      checks.push({level:'pass', title:'File signature matches extension', desc:`Detected ${matchedSig.name} header, consistent with “.${ext}”.`});
+    }
+  } else {
+    checks.push({level:'warn', title:'Unrecognized file signature', desc:'The first bytes don\u2019t match any signature in this tool\u2019s small reference list — inconclusive either way.'});
+  }
+
+  // 4. Embedded executable header deeper in the file (polyglot / dropper indicator)
+  const mzAtStart = bytesStartWith(bytes, [0x4D,0x5A]);
+  let mzElsewhere = false;
+  for (let i = 1024; i < bytes.length - 1; i += 1) {
+    if (bytes[i] === 0x4D && bytes[i+1] === 0x5A) { mzElsewhere = true; break; }
+    if (i > 3_000_000) break; // cap scan for performance
+  }
+  if (!mzAtStart && mzElsewhere) {
+    checks.push({level:'flag', title:'Embedded executable header found', desc:'An “MZ” Windows-executable header appears inside a file that doesn\u2019t start as one — a pattern seen in polyglot files and droppers.'});
+  } else {
+    checks.push({level:'pass', title:'No hidden embedded executable header', desc:'No unexpected executable signature found later in the file.'});
+  }
+
+  // 5. Office macro indicator
+  if (["docx","xlsx","pptx","doc","xls","ppt"].includes(ext) && (findAscii(bytes, "vbaProject") || findAscii(bytes, "macroEnabled"))) {
+    checks.push({level:'warn', title:'Macro content detected', desc:'This document contains embedded macro code. Macros can run automatically and are a common phishing-attachment technique — only enable them if you trust the source.'});
+  } else if (["docx","xlsx","pptx","doc","xls","ppt"].includes(ext)) {
+    checks.push({level:'pass', title:'No macro content detected', desc:'No embedded VBA/macro markers found.'});
+  }
+
+  // 6. Entropy (packed/encrypted payload indicator)
+  const entropy = shannonEntropy(bytes);
+  if (entropy > 7.5) {
+    checks.push({level:'warn', title:'High byte-entropy', desc:`Entropy is ${entropy.toFixed(2)}/8 — consistent with compression, encryption, or packing. Common in legitimate archives too, so not conclusive alone.`});
+  } else {
+    checks.push({level:'pass', title:'Normal byte-entropy', desc:`Entropy is ${entropy.toFixed(2)}/8 — within the range typical of unpacked, non-encrypted content.`});
+  }
+
+  return checks;
+}
+
+function renderResults({file, sha256, sha1, ext, checks, badMatch}){
+  document.getElementById('fname').textContent = file.name;
+  document.getElementById('fsize').textContent = formatBytes(file.size);
+  document.getElementById('sha256').textContent = sha256;
+  document.getElementById('sha1').textContent = sha1;
+
+  const matchEl = document.getElementById('hashMatch');
+  if (badMatch){
+    matchEl.textContent = `⚠ Matches demo list: ${badMatch}`;
+    matchEl.style.color = 'var(--danger)';
+  } else {
+    matchEl.textContent = 'No match in demo list';
+    matchEl.style.color = 'var(--success)';
+  }
+
+  const list = document.getElementById('checksList');
+  list.innerHTML = '';
+  let flagCount = 0, warnCount = 0;
+  checks.forEach(c => {
+    if (c.level === 'flag') flagCount++;
+    if (c.level === 'warn') warnCount++;
+    const row = document.createElement('div');
+    row.className = 'check';
+    const markChar = c.level === 'flag' ? '!' : c.level === 'warn' ? '?' : '✓';
+    row.innerHTML = `
+      <div class="mark ${c.level}">${markChar}</div>
+      <div>
+        <div class="check-title">${c.title}</div>
+        <div class="check-desc">${c.desc}</div>
+      </div>`;
+    list.appendChild(row);
+  });
+
+  const badge = document.getElementById('riskBadge');
+  const detail = document.getElementById('riskDetail');
+  let level, label, text;
+  if (badMatch || flagCount >= 2) {
+    level='high'; label='High signal';
+  } else if (flagCount === 1 || warnCount >= 2) {
+    level='med'; label='Medium signal';
+  } else {
+    level='low'; label='Low signal';
+  }
+  badge.className = 'risk-badge ' + level;
+  badge.textContent = label;
+  detail.innerHTML = badMatch
+    ? `<b>Direct hash match</b> against the demo threat list — treat this file as unsafe.`
+    : `<b>${flagCount}</b> red flag${flagCount===1?'':'s'} and <b>${warnCount}</b> caution${warnCount===1?'':'s'} out of ${checks.length} heuristic checks.`;
+
+  results.classList.add('show');
+}
+
+function formatBytes(n){
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/(1024*1024)).toFixed(2) + ' MB';
+}
+</script>
+</body>
+</html>

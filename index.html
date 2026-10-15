@@ -196,8 +196,7 @@
 </div>
 
 <script>
-// --- Demo known-malicious hash list (SHA-256) ---
-// EICAR is the industry-standard, harmless AV test file — its hash is public and safe to include.
+.
 const KNOWN_BAD_SHA256 = {
   "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0": "EICAR test file (standard antivirus test signature — not real malware)"
 };
@@ -267,7 +266,7 @@ function bytesStartWith(bytes, sig, offset=0){
 }
 
 function findAscii(bytes, needle){
-  // naive substring search over a latin1 decode, fine for small-medium files
+
   const hay = Array.from(bytes.subarray(0, Math.min(bytes.length, 5_000_000)))
     .map(b => String.fromCharCode(b)).join('');
   return hay.includes(needle);
